@@ -1,0 +1,928 @@
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
+#include <unistd.h>
+#include <arpa/inet.h>
+#include <sys/types.h>
+#include <sys/socket.h>
+#include <bearssl.h>
+
+#define SERVER_PORT 4433
+#define BUFFER_SIZE 1024
+
+void handle_client(br_ssl_engine_context *eng, int client_fd) {
+    unsigned char buffer[BUFFER_SIZE];
+    ssize_t len;
+
+    // Perform the TLS handshake
+    while (br_ssl_engine_current_state(eng) & BR_SSL_RECVREC) {
+        if (!br_ssl_engine_recvrec_ack(eng)) {
+            printf("TLS handshake failed\n");
+            return;
+        }
+    }
+
+    // Read data from the client
+    while ((len = read(client_fd, buffer, BUFFER_SIZE)) > 0) {
+        br_ssl_engine_recvrec_ack(eng);
+        buffer[len] = '\0';
+        printf("Received: %s\n", buffer);
+
+        // Echo the data back to the client
+        br_ssl_engine_sendapp_ack(eng, buffer, len);
+        write(client_fd, buffer, len);
+    }
+
+    // Close the SSL connection
+    br_ssl_engine_close(eng);
+    close(client_fd);
+}
+
+int main() {
+    int server_fd, client_fd;
+    struct sockaddr_in server_addr, client_addr;
+    socklen_t client_len;
+    br_ssl_server_context sc;
+    br_x509_minimal_context xc;
+    br_x509_certificate cert;
+    br_rsa_private_key sk;
+    unsigned char server_cert[4096];
+    unsigned char server_key[2048];
+    size_t cert_len, key_len;
+
+    // Load the certificate and private key
+    FILE *cert_file = fopen("/home/kali/SSL/server.der", "rb");
+    cert_len = fread(server_cert, 1, sizeof(server_cert), cert_file);
+    fclose(cert_file);
+    
+    FILE *key_file = fopen("/home/kali/SSL/server_key.der", "rb");
+    key_len = fread(server_key, 1, sizeof(server_key), key_file);
+    fclose(key_file);
+
+    cert.data = server_cert;
+    cert.data_len = cert_len;
+
+    // Initialize the BearSSL context
+    br_ssl_server_init_full_rsa(&sc, &xc, &cert, 1, &sk);
+
+    // Create a socket
+    server_fd = socket(AF_INET, SOCK_STREAM, 0);
+    if (server_fd < 0) {
+        perror("Socket creation failed");
+        return -1;
+    }
+
+    // Bind the socket to the server port
+    memset(&server_addr, 0, sizeof(server_addr));
+    server_addr.sin_family = AF_INET;
+    server_addr.sin_addr.s_addr = INADDR_ANY;
+    server_addr.sin_port = htons(SERVER_PORT);
+
+    if (bind(server_fd, (struct sockaddr *)&server_addr, sizeof(server_addr)) < 0) {
+        perror("Bind failed");
+        return -1;
+    }
+
+    // Listen for incoming connections
+    if (listen(server_fd, 5) < 0) {
+        perror("Listen failed");
+        return -1;
+    }
+
+    printf("Server is listening on port %d\n", SERVER_PORT);
+
+    while (1) {
+        // Accept a client connection
+        client_len = sizeof(client_addr);
+        client_fd = accept(server_fd, (struct sockaddr *)&client_addr, &client_len);
+        if (client_fd < 0) {
+            perror("Accept failed");
+            continue;
+        }
+
+        // Initialize the SSL engine for the client connection
+        br_ssl_server_reset(&sc);
+        br_ssl_engine_set_io(&sc.eng, client_fd, client_fd);
+        br_ssl_engine_set_buffer(&sc.eng, NULL, 0, 1);
+
+        // Handle the client connection
+        handle_client(&sc.eng, client_fd);
+    }
+
+    // Clean up
+    close(server_fd);
+
+    return 0;
+}
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
+#include <unistd.h>
+#include <arpa/inet.h>
+#include <sys/types.h>
+#include <sys/socket.h>
+#include <bearssl.h>
+
+#define SERVER_PORT 4433
+#define BUFFER_SIZE 1024
+
+void handle_client(br_ssl_engine_context *eng, int client_fd) {
+    unsigned char buffer[BUFFER_SIZE];
+    ssize_t len;
+
+    // Perform the TLS handshake
+    while (br_ssl_engine_current_state(eng) & BR_SSL_RECVREC) {
+        if (!br_ssl_engine_recvrec_ack(eng)) {
+            printf("TLS handshake failed\n");
+            return;
+        }
+    }
+
+    // Read data from the client
+    while ((len = read(client_fd, buffer, BUFFER_SIZE)) > 0) {
+        br_ssl_engine_recvrec_ack(eng);
+        buffer[len] = '\0';
+        printf("Received: %s\n", buffer);
+
+        // Echo the data back to the client
+        br_ssl_engine_sendapp_ack(eng, buffer, len);
+        write(client_fd, buffer, len);
+    }
+
+    // Close the SSL connection
+    br_ssl_engine_close(eng);
+    close(client_fd);
+}
+
+int main() {
+    int server_fd, client_fd;
+    struct sockaddr_in server_addr, client_addr;
+    socklen_t client_len;
+    br_ssl_server_context sc;
+    br_x509_minimal_context xc;
+    br_x509_certificate cert;
+    br_rsa_private_key sk;
+    unsigned char server_cert[4096];
+    unsigned char server_key[2048];
+    size_t cert_len, key_len;
+
+    // Load the certificate and private key
+    FILE *cert_file = fopen("/home/kali/SSL/server.der", "rb");
+    cert_len = fread(server_cert, 1, sizeof(server_cert), cert_file);
+    fclose(cert_file);
+    
+    FILE *key_file = fopen("/home/kali/SSL/server_key.der", "rb");
+    key_len = fread(server_key, 1, sizeof(server_key), key_file);
+    fclose(key_file);
+
+    cert.data = server_cert;
+    cert.data_len = cert_len;
+
+    // Initialize the BearSSL context
+    br_ssl_server_init_full_rsa(&sc, &xc, &cert, 1, &sk);
+
+    // Create a socket
+    server_fd = socket(AF_INET, SOCK_STREAM, 0);
+    if (server_fd < 0) {
+        perror("Socket creation failed");
+        return -1;
+    }
+
+    // Bind the socket to the server port
+    memset(&server_addr, 0, sizeof(server_addr));
+    server_addr.sin_family = AF_INET;
+    server_addr.sin_addr.s_addr = INADDR_ANY;
+    server_addr.sin_port = htons(SERVER_PORT);
+
+    if (bind(server_fd, (struct sockaddr *)&server_addr, sizeof(server_addr)) < 0) {
+        perror("Bind failed");
+        return -1;
+    }
+
+    // Listen for incoming connections
+    if (listen(server_fd, 5) < 0) {
+        perror("Listen failed");
+        return -1;
+    }
+
+    printf("Server is listening on port %d\n", SERVER_PORT);
+
+    while (1) {
+        // Accept a client connection
+        client_len = sizeof(client_addr);
+        client_fd = accept(server_fd, (struct sockaddr *)&client_addr, &client_len);
+        if (client_fd < 0) {
+            perror("Accept failed");
+            continue;
+        }
+
+        // Initialize the SSL engine for the client connection
+        br_ssl_server_reset(&sc);
+        br_ssl_engine_set_io(&sc.eng, client_fd, client_fd);
+        br_ssl_engine_set_buffer(&sc.eng, NULL, 0, 1);
+
+        // Handle the client connection
+        handle_client(&sc.eng, client_fd);
+    }
+
+    // Clean up
+    close(server_fd);
+
+    return 0;
+}
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
+#include <unistd.h>
+#include <arpa/inet.h>
+#include <sys/types.h>
+#include <sys/socket.h>
+#include <bearssl.h>
+
+#define SERVER_PORT 4433
+#define BUFFER_SIZE 1024
+
+void handle_client(br_ssl_engine_context *eng, int client_fd) {
+    unsigned char buffer[BUFFER_SIZE];
+    ssize_t len;
+
+    // Perform the TLS handshake
+    while (br_ssl_engine_current_state(eng) & BR_SSL_RECVREC) {
+        if (!br_ssl_engine_recvrec_ack(eng)) {
+            printf("TLS handshake failed\n");
+            return;
+        }
+    }
+
+    // Read data from the client
+    while ((len = read(client_fd, buffer, BUFFER_SIZE)) > 0) {
+        br_ssl_engine_recvrec_ack(eng);
+        buffer[len] = '\0';
+        printf("Received: %s\n", buffer);
+
+        // Echo the data back to the client
+        br_ssl_engine_sendapp_ack(eng, buffer, len);
+        write(client_fd, buffer, len);
+    }
+
+    // Close the SSL connection
+    br_ssl_engine_close(eng);
+    close(client_fd);
+}
+
+int main() {
+    int server_fd, client_fd;
+    struct sockaddr_in server_addr, client_addr;
+    socklen_t client_len;
+    br_ssl_server_context sc;
+    br_x509_minimal_context xc;
+    br_x509_certificate cert;
+    br_rsa_private_key sk;
+    unsigned char server_cert[4096];
+    unsigned char server_key[2048];
+    size_t cert_len, key_len;
+
+    // Load the certificate and private key
+    FILE *cert_file = fopen("/home/kali/SSL/server.der", "rb");
+    cert_len = fread(server_cert, 1, sizeof(server_cert), cert_file);
+    fclose(cert_file);
+    
+    FILE *key_file = fopen("/home/kali/SSL/server_key.der", "rb");
+    key_len = fread(server_key, 1, sizeof(server_key), key_file);
+    fclose(key_file);
+
+    cert.data = server_cert;
+    cert.data_len = cert_len;
+
+    // Initialize the BearSSL context
+    br_ssl_server_init_full_rsa(&sc, &xc, &cert, 1, &sk);
+
+    // Create a socket
+    server_fd = socket(AF_INET, SOCK_STREAM, 0);
+    if (server_fd < 0) {
+        perror("Socket creation failed");
+        return -1;
+    }
+
+    // Bind the socket to the server port
+    memset(&server_addr, 0, sizeof(server_addr));
+    server_addr.sin_family = AF_INET;
+    server_addr.sin_addr.s_addr = INADDR_ANY;
+    server_addr.sin_port = htons(SERVER_PORT);
+
+    if (bind(server_fd, (struct sockaddr *)&server_addr, sizeof(server_addr)) < 0) {
+        perror("Bind failed");
+        return -1;
+    }
+
+    // Listen for incoming connections
+    if (listen(server_fd, 5) < 0) {
+        perror("Listen failed");
+        return -1;
+    }
+
+    printf("Server is listening on port %d\n", SERVER_PORT);
+
+    while (1) {
+        // Accept a client connection
+        client_len = sizeof(client_addr);
+        client_fd = accept(server_fd, (struct sockaddr *)&client_addr, &client_len);
+        if (client_fd < 0) {
+            perror("Accept failed");
+            continue;
+        }
+
+        // Initialize the SSL engine for the client connection
+        br_ssl_server_reset(&sc);
+        br_ssl_engine_set_io(&sc.eng, client_fd, client_fd);
+        br_ssl_engine_set_buffer(&sc.eng, NULL, 0, 1);
+
+        // Handle the client connection
+        handle_client(&sc.eng, client_fd);
+    }
+
+    // Clean up
+    close(server_fd);
+
+    return 0;
+}
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
+#include <unistd.h>
+#include <arpa/inet.h>
+#include <sys/types.h>
+#include <sys/socket.h>
+#include <bearssl.h>
+
+#define SERVER_PORT 4433
+#define BUFFER_SIZE 1024
+
+void handle_client(br_ssl_engine_context *eng, int client_fd) {
+    unsigned char buffer[BUFFER_SIZE];
+    ssize_t len;
+
+    // Perform the TLS handshake
+    while (br_ssl_engine_current_state(eng) & BR_SSL_RECVREC) {
+        if (!br_ssl_engine_recvrec_ack(eng)) {
+            printf("TLS handshake failed\n");
+            return;
+        }
+    }
+
+    // Read data from the client
+    while ((len = read(client_fd, buffer, BUFFER_SIZE)) > 0) {
+        br_ssl_engine_recvrec_ack(eng);
+        buffer[len] = '\0';
+        printf("Received: %s\n", buffer);
+
+        // Echo the data back to the client
+        br_ssl_engine_sendapp_ack(eng, buffer, len);
+        write(client_fd, buffer, len);
+    }
+
+    // Close the SSL connection
+    br_ssl_engine_close(eng);
+    close(client_fd);
+}
+
+int main() {
+    int server_fd, client_fd;
+    struct sockaddr_in server_addr, client_addr;
+    socklen_t client_len;
+    br_ssl_server_context sc;
+    br_x509_minimal_context xc;
+    br_x509_certificate cert;
+    br_rsa_private_key sk;
+    unsigned char server_cert[4096];
+    unsigned char server_key[2048];
+    size_t cert_len, key_len;
+
+    // Load the certificate and private key
+    FILE *cert_file = fopen("/home/kali/SSL/server.der", "rb");
+    cert_len = fread(server_cert, 1, sizeof(server_cert), cert_file);
+    fclose(cert_file);
+    
+    FILE *key_file = fopen("/home/kali/SSL/server_key.der", "rb");
+    key_len = fread(server_key, 1, sizeof(server_key), key_file);
+    fclose(key_file);
+
+    cert.data = server_cert;
+    cert.data_len = cert_len;
+
+    // Initialize the BearSSL context
+    br_ssl_server_init_full_rsa(&sc, &xc, &cert, 1, &sk);
+
+    // Create a socket
+    server_fd = socket(AF_INET, SOCK_STREAM, 0);
+    if (server_fd < 0) {
+        perror("Socket creation failed");
+        return -1;
+    }
+
+    // Bind the socket to the server port
+    memset(&server_addr, 0, sizeof(server_addr));
+    server_addr.sin_family = AF_INET;
+    server_addr.sin_addr.s_addr = INADDR_ANY;
+    server_addr.sin_port = htons(SERVER_PORT);
+
+    if (bind(server_fd, (struct sockaddr *)&server_addr, sizeof(server_addr)) < 0) {
+        perror("Bind failed");
+        return -1;
+    }
+
+    // Listen for incoming connections
+    if (listen(server_fd, 5) < 0) {
+        perror("Listen failed");
+        return -1;
+    }
+
+    printf("Server is listening on port %d\n", SERVER_PORT);
+
+    while (1) {
+        // Accept a client connection
+        client_len = sizeof(client_addr);
+        client_fd = accept(server_fd, (struct sockaddr *)&client_addr, &client_len);
+        if (client_fd < 0) {
+            perror("Accept failed");
+            continue;
+        }
+
+        // Initialize the SSL engine for the client connection
+        br_ssl_server_reset(&sc);
+        br_ssl_engine_set_io(&sc.eng, client_fd, client_fd);
+        br_ssl_engine_set_buffer(&sc.eng, NULL, 0, 1);
+
+        // Handle the client connection
+        handle_client(&sc.eng, client_fd);
+    }
+
+    // Clean up
+    close(server_fd);
+
+    return 0;
+}
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
+#include <unistd.h>
+#include <arpa/inet.h>
+#include <sys/types.h>
+#include <sys/socket.h>
+#include <bearssl.h>
+
+#define SERVER_PORT 4433
+#define BUFFER_SIZE 1024
+
+void handle_client(br_ssl_engine_context *eng, int client_fd) {
+    unsigned char buffer[BUFFER_SIZE];
+    ssize_t len;
+
+    // Perform the TLS handshake
+    while (br_ssl_engine_current_state(eng) & BR_SSL_RECVREC) {
+        if (!br_ssl_engine_recvrec_ack(eng)) {
+            printf("TLS handshake failed\n");
+            return;
+        }
+    }
+
+    // Read data from the client
+    while ((len = read(client_fd, buffer, BUFFER_SIZE)) > 0) {
+        br_ssl_engine_recvrec_ack(eng);
+        buffer[len] = '\0';
+        printf("Received: %s\n", buffer);
+
+        // Echo the data back to the client
+        br_ssl_engine_sendapp_ack(eng, buffer, len);
+        write(client_fd, buffer, len);
+    }
+
+    // Close the SSL connection
+    br_ssl_engine_close(eng);
+    close(client_fd);
+}
+
+int main() {
+    int server_fd, client_fd;
+    struct sockaddr_in server_addr, client_addr;
+    socklen_t client_len;
+    br_ssl_server_context sc;
+    br_x509_minimal_context xc;
+    br_x509_certificate cert;
+    br_rsa_private_key sk;
+    unsigned char server_cert[4096];
+    unsigned char server_key[2048];
+    size_t cert_len, key_len;
+
+    // Load the certificate and private key
+    FILE *cert_file = fopen("/home/kali/SSL/server.der", "rb");
+    cert_len = fread(server_cert, 1, sizeof(server_cert), cert_file);
+    fclose(cert_file);
+    
+    FILE *key_file = fopen("/home/kali/SSL/server_key.der", "rb");
+    key_len = fread(server_key, 1, sizeof(server_key), key_file);
+    fclose(key_file);
+
+    cert.data = server_cert;
+    cert.data_len = cert_len;
+
+    // Initialize the BearSSL context
+    br_ssl_server_init_full_rsa(&sc, &xc, &cert, 1, &sk);
+
+    // Create a socket
+    server_fd = socket(AF_INET, SOCK_STREAM, 0);
+    if (server_fd < 0) {
+        perror("Socket creation failed");
+        return -1;
+    }
+
+    // Bind the socket to the server port
+    memset(&server_addr, 0, sizeof(server_addr));
+    server_addr.sin_family = AF_INET;
+    server_addr.sin_addr.s_addr = INADDR_ANY;
+    server_addr.sin_port = htons(SERVER_PORT);
+
+    if (bind(server_fd, (struct sockaddr *)&server_addr, sizeof(server_addr)) < 0) {
+        perror("Bind failed");
+        return -1;
+    }
+
+    // Listen for incoming connections
+    if (listen(server_fd, 5) < 0) {
+        perror("Listen failed");
+        return -1;
+    }
+
+    printf("Server is listening on port %d\n", SERVER_PORT);
+
+    while (1) {
+        // Accept a client connection
+        client_len = sizeof(client_addr);
+        client_fd = accept(server_fd, (struct sockaddr *)&client_addr, &client_len);
+        if (client_fd < 0) {
+            perror("Accept failed");
+            continue;
+        }
+
+        // Initialize the SSL engine for the client connection
+        br_ssl_server_reset(&sc);
+        br_ssl_engine_set_io(&sc.eng, client_fd, client_fd);
+        br_ssl_engine_set_buffer(&sc.eng, NULL, 0, 1);
+
+        // Handle the client connection
+        handle_client(&sc.eng, client_fd);
+    }
+
+    // Clean up
+    close(server_fd);
+
+    return 0;
+}
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
+#include <unistd.h>
+#include <arpa/inet.h>
+#include <sys/types.h>
+#include <sys/socket.h>
+#include <bearssl.h>
+
+#define SERVER_PORT 4433
+#define BUFFER_SIZE 1024
+
+void handle_client(br_ssl_engine_context *eng, int client_fd) {
+    unsigned char buffer[BUFFER_SIZE];
+    ssize_t len;
+
+    // Perform the TLS handshake
+    while (br_ssl_engine_current_state(eng) & BR_SSL_RECVREC) {
+        if (!br_ssl_engine_recvrec_ack(eng)) {
+            printf("TLS handshake failed\n");
+            return;
+        }
+    }
+
+    // Read data from the client
+    while ((len = read(client_fd, buffer, BUFFER_SIZE)) > 0) {
+        br_ssl_engine_recvrec_ack(eng);
+        buffer[len] = '\0';
+        printf("Received: %s\n", buffer);
+
+        // Echo the data back to the client
+        br_ssl_engine_sendapp_ack(eng, buffer, len);
+        write(client_fd, buffer, len);
+    }
+
+    // Close the SSL connection
+    br_ssl_engine_close(eng);
+    close(client_fd);
+}
+
+int main() {
+    int server_fd, client_fd;
+    struct sockaddr_in server_addr, client_addr;
+    socklen_t client_len;
+    br_ssl_server_context sc;
+    br_x509_minimal_context xc;
+    br_x509_certificate cert;
+    br_rsa_private_key sk;
+    unsigned char server_cert[4096];
+    unsigned char server_key[2048];
+    size_t cert_len, key_len;
+
+    // Load the certificate and private key
+    FILE *cert_file = fopen("/home/kali/SSL/server.der", "rb");
+    cert_len = fread(server_cert, 1, sizeof(server_cert), cert_file);
+    fclose(cert_file);
+    
+    FILE *key_file = fopen("/home/kali/SSL/server_key.der", "rb");
+    key_len = fread(server_key, 1, sizeof(server_key), key_file);
+    fclose(key_file);
+
+    cert.data = server_cert;
+    cert.data_len = cert_len;
+
+    // Initialize the BearSSL context
+    br_ssl_server_init_full_rsa(&sc, &xc, &cert, 1, &sk);
+
+    // Create a socket
+    server_fd = socket(AF_INET, SOCK_STREAM, 0);
+    if (server_fd < 0) {
+        perror("Socket creation failed");
+        return -1;
+    }
+
+    // Bind the socket to the server port
+    memset(&server_addr, 0, sizeof(server_addr));
+    server_addr.sin_family = AF_INET;
+    server_addr.sin_addr.s_addr = INADDR_ANY;
+    server_addr.sin_port = htons(SERVER_PORT);
+
+    if (bind(server_fd, (struct sockaddr *)&server_addr, sizeof(server_addr)) < 0) {
+        perror("Bind failed");
+        return -1;
+    }
+
+    // Listen for incoming connections
+    if (listen(server_fd, 5) < 0) {
+        perror("Listen failed");
+        return -1;
+    }
+
+    printf("Server is listening on port %d\n", SERVER_PORT);
+
+    while (1) {
+        // Accept a client connection
+        client_len = sizeof(client_addr);
+        client_fd = accept(server_fd, (struct sockaddr *)&client_addr, &client_len);
+        if (client_fd < 0) {
+            perror("Accept failed");
+            continue;
+        }
+
+        // Initialize the SSL engine for the client connection
+        br_ssl_server_reset(&sc);
+        br_ssl_engine_set_io(&sc.eng, client_fd, client_fd);
+        br_ssl_engine_set_buffer(&sc.eng, NULL, 0, 1);
+
+        // Handle the client connection
+        handle_client(&sc.eng, client_fd);
+    }
+
+    // Clean up
+    close(server_fd);
+
+    return 0;
+}
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
+#include <unistd.h>
+#include <arpa/inet.h>
+#include <sys/types.h>
+#include <sys/socket.h>
+#include <bearssl.h>
+
+#define SERVER_PORT 4433
+#define BUFFER_SIZE 1024
+
+void handle_client(br_ssl_engine_context *eng, int client_fd) {
+    unsigned char buffer[BUFFER_SIZE];
+    ssize_t len;
+
+    // Perform the TLS handshake
+    while (br_ssl_engine_current_state(eng) & BR_SSL_RECVREC) {
+        if (!br_ssl_engine_recvrec_ack(eng)) {
+            printf("TLS handshake failed\n");
+            return;
+        }
+    }
+
+    // Read data from the client
+    while ((len = read(client_fd, buffer, BUFFER_SIZE)) > 0) {
+        br_ssl_engine_recvrec_ack(eng);
+        buffer[len] = '\0';
+        printf("Received: %s\n", buffer);
+
+        // Echo the data back to the client
+        br_ssl_engine_sendapp_ack(eng, buffer, len);
+        write(client_fd, buffer, len);
+    }
+
+    // Close the SSL connection
+    br_ssl_engine_close(eng);
+    close(client_fd);
+}
+
+int main() {
+    int server_fd, client_fd;
+    struct sockaddr_in server_addr, client_addr;
+    socklen_t client_len;
+    br_ssl_server_context sc;
+    br_x509_minimal_context xc;
+    br_x509_certificate cert;
+    br_rsa_private_key sk;
+    unsigned char server_cert[4096];
+    unsigned char server_key[2048];
+    size_t cert_len, key_len;
+
+    // Load the certificate and private key
+    FILE *cert_file = fopen("/home/kali/SSL/server.der", "rb");
+    cert_len = fread(server_cert, 1, sizeof(server_cert), cert_file);
+    fclose(cert_file);
+    
+    FILE *key_file = fopen("/home/kali/SSL/server_key.der", "rb");
+    key_len = fread(server_key, 1, sizeof(server_key), key_file);
+    fclose(key_file);
+
+    cert.data = server_cert;
+    cert.data_len = cert_len;
+
+    // Initialize the BearSSL context
+    br_ssl_server_init_full_rsa(&sc, &xc, &cert, 1, &sk);
+
+    // Create a socket
+    server_fd = socket(AF_INET, SOCK_STREAM, 0);
+    if (server_fd < 0) {
+        perror("Socket creation failed");
+        return -1;
+    }
+
+    // Bind the socket to the server port
+    memset(&server_addr, 0, sizeof(server_addr));
+    server_addr.sin_family = AF_INET;
+    server_addr.sin_addr.s_addr = INADDR_ANY;
+    server_addr.sin_port = htons(SERVER_PORT);
+
+    if (bind(server_fd, (struct sockaddr *)&server_addr, sizeof(server_addr)) < 0) {
+        perror("Bind failed");
+        return -1;
+    }
+
+    // Listen for incoming connections
+    if (listen(server_fd, 5) < 0) {
+        perror("Listen failed");
+        return -1;
+    }
+
+    printf("Server is listening on port %d\n", SERVER_PORT);
+
+    while (1) {
+        // Accept a client connection
+        client_len = sizeof(client_addr);
+        client_fd = accept(server_fd, (struct sockaddr *)&client_addr, &client_len);
+        if (client_fd < 0) {
+            perror("Accept failed");
+            continue;
+        }
+
+        // Initialize the SSL engine for the client connection
+        br_ssl_server_reset(&sc);
+        br_ssl_engine_set_io(&sc.eng, client_fd, client_fd);
+        br_ssl_engine_set_buffer(&sc.eng, NULL, 0, 1);
+
+        // Handle the client connection
+        handle_client(&sc.eng, client_fd);
+    }
+
+    // Clean up
+    close(server_fd);
+
+    return 0;
+}
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
+#include <unistd.h>
+#include <arpa/inet.h>
+#include <sys/types.h>
+#include <sys/socket.h>
+#include <bearssl.h>
+
+#define SERVER_PORT 4433
+#define BUFFER_SIZE 1024
+
+void handle_client(br_ssl_engine_context *eng, int client_fd) {
+    unsigned char buffer[BUFFER_SIZE];
+    ssize_t len;
+
+    // Perform the TLS handshake
+    while (br_ssl_engine_current_state(eng) & BR_SSL_RECVREC) {
+        if (!br_ssl_engine_recvrec_ack(eng)) {
+            printf("TLS handshake failed\n");
+            return;
+        }
+    }
+
+    // Read data from the client
+    while ((len = read(client_fd, buffer, BUFFER_SIZE)) > 0) {
+        br_ssl_engine_recvrec_ack(eng);
+        buffer[len] = '\0';
+        printf("Received: %s\n", buffer);
+
+        // Echo the data back to the client
+        br_ssl_engine_sendapp_ack(eng, buffer, len);
+        write(client_fd, buffer, len);
+    }
+
+    // Close the SSL connection
+    br_ssl_engine_close(eng);
+    close(client_fd);
+}
+
+int main() {
+    int server_fd, client_fd;
+    struct sockaddr_in server_addr, client_addr;
+    socklen_t client_len;
+    br_ssl_server_context sc;
+    br_x509_minimal_context xc;
+    br_x509_certificate cert;
+    br_rsa_private_key sk;
+    unsigned char server_cert[4096];
+    unsigned char server_key[2048];
+    size_t cert_len, key_len;
+
+    // Load the certificate and private key
+    FILE *cert_file = fopen("/home/kali/SSL/server.der", "rb");
+    cert_len = fread(server_cert, 1, sizeof(server_cert), cert_file);
+    fclose(cert_file);
+    
+    FILE *key_file = fopen("/home/kali/SSL/server_key.der", "rb");
+    key_len = fread(server_key, 1, sizeof(server_key), key_file);
+    fclose(key_file);
+
+    cert.data = server_cert;
+    cert.data_len = cert_len;
+
+    // Initialize the BearSSL context
+    br_ssl_server_init_full_rsa(&sc, &xc, &cert, 1, &sk);
+
+    // Create a socket
+    server_fd = socket(AF_INET, SOCK_STREAM, 0);
+    if (server_fd < 0) {
+        perror("Socket creation failed");
+        return -1;
+    }
+
+    // Bind the socket to the server port
+    memset(&server_addr, 0, sizeof(server_addr));
+    server_addr.sin_family = AF_INET;
+    server_addr.sin_addr.s_addr = INADDR_ANY;
+    server_addr.sin_port = htons(SERVER_PORT);
+
+    if (bind(server_fd, (struct sockaddr *)&server_addr, sizeof(server_addr)) < 0) {
+        perror("Bind failed");
+        return -1;
+    }
+
+    // Listen for incoming connections
+    if (listen(server_fd, 5) < 0) {
+        perror("Listen failed");
+        return -1;
+    }
+
+    printf("Server is listening on port %d\n", SERVER_PORT);
+
+    while (1) {
+        // Accept a client connection
+        client_len = sizeof(client_addr);
+        client_fd = accept(server_fd, (struct sockaddr *)&client_addr, &client_len);
+        if (client_fd < 0) {
+            perror("Accept failed");
+            continue;
+        }
+
+        // Initialize the SSL engine for the client connection
+        br_ssl_server_reset(&sc);
+        br_ssl_engine_set_io(&sc.eng, client_fd, client_fd);
+        br_ssl_engine_set_buffer(&sc.eng, NULL, 0, 1);
+
+        // Handle the client connection
+        handle_client(&sc.eng, client_fd);
+    }
+
+    // Clean up
+    close(server_fd);
+
+    return 0;
+}
